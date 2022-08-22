@@ -51,7 +51,23 @@ library(EnsDb.Mmusculus.v79)
 library(org.Mm.eg.db)
 library(eulerr)
 library(GeneOverlap)
+library(xfun)
 setwd("~/Documents/MED4_collab")
+```
+
+# Normalized Counts
+
+```{r echo=FALSE}
+xfun::embed_file("~/Documents/MED4_collab/data/normalized.csv_files/M1_v_NTC.csv")
+```
+---
+```{r echo=FALSE}
+xfun::embed_file("~/Documents/MED4_collab/data/normalized.csv_files/M4_v_NTC.csv")
+```
+---
+<i> M1 (n=3) and M4 (n=3) were pooled together and compared against NTC (n=3) </i>
+```{r echo=FALSE}
+xfun::embed_file("~/Documents/MED4_collab/data/normalized.csv_files/KD_v_NTC.csv")
 ```
 
 # PCA
