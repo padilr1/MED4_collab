@@ -1,0 +1,7 @@
+name: ""
+navbar:
+  title: "MED4KD"
+  left:
+    - text: "RNAseq Analysis"
+      href: index.html
+output_dir: "docs"

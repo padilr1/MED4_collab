@@ -1,0 +1,341 @@
+---
+title: ""
+author: ""
+date: ""
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    collapsed: false
+    number_sections: false
+    toc_depth: 3
+    smooth_scroll: false
+    theme: cerulean
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
+library(gridExtra)
+library(grid)
+library(cowplot)
+library(reactable)
+library(data.table)
+library(reticulate)
+library(sciplot)
+library(plotly)
+library(matrixStats)
+library(SummarizedExperiment)
+library(RColorBrewer)
+library(heatmaply)
+library(ggrepel)
+library(tidyverse)
+library(gprofiler2)
+library(patchwork)
+library(DESeq2)
+library(apeglm)
+library(fgsea)
+library(msigdbr)
+library(compiler)
+library(shiny)
+library(tippy)
+library(msigdbr)
+# library(GSVA)
+library(pals)
+library(ggtext)
+library(broom)
+library(DT)
+library(EnsDb.Mmusculus.v79)
+library(org.Mm.eg.db)
+library(eulerr)
+library(GeneOverlap)
+setwd("~/Documents/MED4_collab")
+```
+
+# PCA
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+load("~/Documents/MED4_collab/data/RData/RNAseq/vst_condition.RData")
+load("~/Documents/MED4_collab/data/RData/RNAseq/mdat.RData")
+rv <- rowVars(assay(vst))
+select <- order(rv, decreasing=T)[seq_len(min(500,length(rv)))]
+pc <- prcomp(t(assay(vst)[select,]))
+condition <- mdat$condition
+scores <- data.frame(pc$x, condition)
+percentage <- round(pc$sdev / sum(pc$sdev) * 100, 2)
+percentage <- paste( colnames(scores), "(", paste( as.character(percentage), "%", ")", sep="") )
+p <- plot_ly(scores,x=scores$PC1,y=scores$PC2,text=rownames(scores),mode="markers",color=factor(condition),marker=list(size=11),colors = "Dark2")
+p <- layout(p,title="",   xaxis = list(title = percentage[1]),
+            yaxis = list(title = percentage[2]))
+p
+```
+
+# Hierarchical clustering
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+rv <- rowVars(assay(vst))
+select <- order(rv, decreasing=T)[seq_len(min(500,length(rv)))]
+gplots::heatmap.2(assay(vst)[select,], margins = c(10, 6),trace = "none", col = viridis(100),srtCol = 70,cexCol = 0.8)
+#heatmaply(assay(rld)[select,],seriate = "mean",row_dend_left=TRUE,plot_method="plotly",hide_colorbar = TRUE)
+```
+
+# Correlation Heatmap
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+rv <- rowVars(assay(vst))
+select <- order(rv, decreasing=T)[seq_len(min(500,length(rv)))]
+#sampleDists <- stats::dist(t(assay(rld[select])),method = "euclidean")
+#sampleDistMatrix <- as.matrix(sampleDists)
+#colors <- colorRampPalette( rev(brewer.pal(9, "YlOrRd")) )(255)
+#heatmaply(sampleDistMatrix,
+        #  clustering_distance_rows=sampleDists,
+       #   clustering_distance_cols=sampleDists,
+       #   col=colors,showticklabels = FALSE,key.title = "Euclidean distance",row_dend_left = TRUE,dend_hoverinfo #= FALSE)
+
+heatmaply_cor(
+  cor(assay(vst[select,])),showticklabels = TRUE,key.title = "",row_dend_left = FALSE)
+```
+
+# Volcano {.tabset}
+```{r volcano_plot, include=FALSE}
+shrunken.logfc <- function(dds,group,sampA,ref_sampB){ #group is similar to condition
+  df_shrunken <- lfcShrink(dds,contrast=c(group,sampA,ref_sampB),type="ashr")
+  df <- df_shrunken %>%
+    data.frame() %>%
+    na.omit() %>%
+    rownames_to_column('ensembl_gene_id')
+  geneSymbols <- ensembldb::select(EnsDb.Mmusculus.v79, keys=df$ensembl_gene_id, keytype = "GENEID", columns = c("SYMBOL","GENEID"))
+  colnames(geneSymbols) <- c("gene","ensembl_gene_id")
+  rd <- full_join(df,geneSymbols,by="ensembl_gene_id")
+  return(rd)
+}
+#
+volc <- function(r, x, y, ylab, ttl) {
+  d <- as.data.frame(r) %>%
+    dplyr::rename(x = !!x, y = !!y) %>%
+    mutate(kind = case_when((abs(x) > 2 & y < .05) ~ 'DE',
+                            abs(x) > 2 ~ '|logFC|>2',
+                            y < .05 ~ 'FDR<0.05',
+                            T ~ 'NS'),
+           y = -log10(y))
+  ct <- d %>% 
+    dplyr::filter(kind == 'DE') %>%
+    mutate(up = x > 0) %>%
+    dplyr::count(up) %>%
+    mutate(x = ifelse(up, Inf, -Inf),
+           y = Inf,
+           h = as.numeric(up))
+  ggplot(d, aes(x, y, color = kind)) +
+    geom_vline(xintercept = c(-2, 2), linetype = 'dashed') +
+    geom_hline(yintercept = -log10(0.05), linetype = 'dashed') +
+    geom_point(alpha = .5) +
+    geom_label(aes(x = x, y = y, label = n, hjust = h),
+              vjust = 1, data = ct, inherit.aes = F) +
+     geom_text_repel(aes(label = gene), data = subset(d, kind == "DE"),max.overlaps = 10,show.legend = F, min.segment.length = 0) + scale_y_continuous() +
+    scale_color_manual(values = c('orange','forestgreen', 'red',  'black')) +
+    labs(x = x, y = ylab, title = ttl) + theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        legend.title = element_blank())
+}
+```
+
+## M1 vs NTC
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+load("~/Documents/MED4_collab/data/RData/RNAseq/dds_condition.RData")
+load("~/Documents/MED4_collab/data/RData/RNAseq/rd_M1_v_NTC.RData")
+# cdat <- cdat %>%
+#   rownames_to_column("ensembl_gene_id")
+#
+srd <- shrunken.logfc(dds = dds_condition,group = "condition","M1","NTC")
+volc(srd,'log2FoldChange','padj','-log10(FDR)','')
+```
+
+## M4 vs NTC
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+load("~/Documents/MED4_collab/data/RData/RNAseq/rd_M4_v_NTC.RData")
+# cdat <- cdat %>%
+#   rownames_to_column("ensembl_gene_id")
+#
+srd <- shrunken.logfc(dds = dds_condition,group = "condition","M4","NTC")
+volc(srd,'log2FoldChange','padj','-log10(FDR)','')
+```
+
+## KD vs NTC
+M1 and M4 were pooled together and compared against NTC. *Note the unbalanced comparison: n=6 for MED4KD (3 reps for M1 and 3 reps for M4) vs. n=3 for NTC
+
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+load("~/Documents/MED4_collab/data/RData/RNAseq/rd_KD_v_NTC.RData")
+load("~/Documents/MED4_collab/data/RData/RNAseq/dds_treatment.RData")
+# cdat <- cdat %>%
+#   rownames_to_column("ensembl_gene_id")
+#
+srd <- shrunken.logfc(dds = dds_treatment,group = "treatment","KD","Control")
+volc(srd,'log2FoldChange','padj','-log10(FDR)','')
+```
+
+# Pathway Analysis {.tabset}
+
+Using criteria of log2FC > 2 and FDR < 0.05
+```{r include=FALSE}
+pathway_analysis <- function(x,fc_cutoff){ #x is dge df OR rd
+  up <- gost(x$ensembl_gene_id[x$padj < .05 & x$log2FoldChange > fc_cutoff],
+             organism = 'mmusculus',
+             custom_bg = x$ensembl_gene_id,
+             user_threshold = 0.05,
+             significant = TRUE,
+             evcodes = TRUE,
+             exclude_iea = TRUE,
+             correction_method = "fdr",
+             sources = c("GO","KEGG","REAC","TF","CORUM"))
+  down <- gost(x$ensembl_gene_id[x$padj < .05 & x$log2FoldChange < -fc_cutoff],
+             organism = 'mmusculus',
+             custom_bg = x$ensembl_gene_id,
+             user_threshold = 0.05,
+             significant = TRUE,
+             evcodes = TRUE,
+             exclude_iea = TRUE,
+             correction_method = "fdr",
+             sources = c("GO","KEGG","REAC","TF","CORUM"))
+  up_reactable <- up$result %>% dplyr::select(source, term_name, term_id, intersection_size, p_value)
+  down_reactable <- down$result %>% dplyr::select(source, term_name, term_id, intersection_size, p_value)
+  return(list(up=up,down=down,up_reactable=up_reactable,down_reactable=down_reactable))
+}
+```
+
+## M1 v NTC {.tabset}
+
+### Upregulated
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+# load("~/Documents/MED4_collab/data/RData/RNAseq/pa_M1_v_NTC.RData")
+pa_M1_v_NTC <- pathway_analysis(x = rd_M1_v_NTC,fc_cutoff = 2)
+gostplot(pa_M1_v_NTC$up,capped = FALSE,interactive = TRUE)
+reactable(pa_M1_v_NTC$up_reactable)
+```
+
+### Downregulated
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+gostplot(pa_M1_v_NTC$down,capped = FALSE,interactive = TRUE)
+reactable(pa_M1_v_NTC$down_reactable)
+```
+
+## M4 v NTC {.tabset}
+
+### Upregulated
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+# load("~/Documents/MED4_collab/data/RData/RNAseq/pa_M4_v_NTC.RData")
+pa_M4_v_NTC <- pathway_analysis(rd_M4_v_NTC,fc_cutoff = 2)
+gostplot(pa_M4_v_NTC$up,capped = FALSE,interactive = TRUE)
+reactable(pa_M4_v_NTC$up_reactable)
+```
+
+### Downregulated
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+gostplot(pa_M4_v_NTC$down,capped = FALSE,interactive = TRUE)
+reactable(pa_M4_v_NTC$down_reactable)
+```
+
+## KD v NTC {.tabset}
+
+### Upregulated
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+pa_KD_v_NTC <- pathway_analysis(rd_KD_v_NTC,fc_cutoff = 2)
+gostplot(pa_KD_v_NTC$up,capped = FALSE,interactive = TRUE)
+reactable(pa_KD_v_NTC$up_reactable)
+```
+
+### Downregulated
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+gostplot(pa_KD_v_NTC$down,capped = FALSE,interactive = TRUE)
+reactable(pa_KD_v_NTC$down_reactable)
+```
+
+# GSEA {.tabset}
+```{r include=FALSE}
+#gsea
+gsea <- function(x){
+  e2s <- AnnotationDbi::select(org.Mm.eg.db,
+                             key = x$ensembl_gene_id,
+                             columns = "SYMBOL",
+                             keytype = "ENSEMBL") %>%
+  na.omit() %>%
+  deframe()
+  # use DE test statistic to rank genes
+  s <- x %>% 
+  mutate(symb = e2s[ensembl_gene_id]) %>%
+  na.omit() %>% 
+  group_by(symb) %>%
+  summarise(stat = mean(stat)) %>%
+  deframe()
+  # pathways
+  p <- msigdbr(species = "Mus musculus", category = "H") %>%
+  mutate(gs_name = sub('^HALLMARK_', '', gs_name)) %>%
+    {split(.$gene_symbol, .$gs_name)}
+  # GSEA
+  r <- fgsea(pathways = p, stats = s, eps = 0.0)
+  plot.r <- r %>%
+  arrange(NES) %>% 
+  mutate(pathway = fct_inorder(pathway)) %>% 
+  ggplot(aes(x = pathway, y = NES)) + 
+  geom_col(aes(fill = -log10(padj))) +
+  scale_fill_viridis_c() +
+  coord_flip() +
+  labs(x = "Pathway",
+       y = "Normalized enrichment score")
+  top_hit <- plotEnrichment(p[[arrange(r, padj)$pathway[1]]], s) +
+  ggtitle(arrange(r, padj)$pathway[1])
+  gsea_table <- arrange(r, padj) %>%
+  dplyr::select(pathway, padj, ES, NES, size, leadingEdge) %>%
+  mutate_at(c('pathway', 'padj', 'ES', 'NES'), function(x) {
+    formatC(x, digits = 3, format = 'g')
+  }) %>%
+  reactable(
+    searchable = T,
+    highlight = T,
+    wrap = F,
+    resizable = T,
+    striped = T,
+    paginationType = "jump",
+    showPageSizeOptions = T,
+    defaultPageSize = 10,
+    columns = list(
+      leadingEdge = colDef(
+        html = T,
+        cell =  function(value, index, name) {
+          value <- paste(value, collapse = ', ')
+          div(
+            style = "cursor: info;
+                     white-space: nowrap;
+                     overflow: hidden;
+                     text-overflow: ellipsis;",
+            tippy(text = value, tooltip = value)
+          )
+        }
+      )
+    )
+  )
+  return(list(s=s,p=p,r=r,plot.r=plot.r,top_hit=top_hit,gsea_table=gsea_table))
+}
+```
+
+## M1 v NTC 
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+gsea_M1_v_NTC <- gsea(x = rd_M1_v_NTC)
+plot(gsea_M1_v_NTC$plot.r)
+gsea_M1_v_NTC$gsea_table
+```
+
+## M4 v NTC
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+gsea_M4_v_NTC <- gsea(x = rd_M4_v_NTC)
+plot(gsea_M4_v_NTC$plot.r)
+gsea_M4_v_NTC$gsea_table
+```
+
+## KD v NTC
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+gsea_KD_v_NTC <- gsea(x = rd_KD_v_NTC)
+plot(gsea_KD_v_NTC$plot.r)
+gsea_KD_v_NTC$gsea_table
+```
