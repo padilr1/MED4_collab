@@ -1,0 +1,590 @@
+---
+title: ""
+author: ""
+date: ""
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    collapsed: false
+    number_sections: false
+    toc_depth: 3
+    smooth_scroll: false
+    theme: cerulean
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = F,
+  message = F,
+  warning = F,
+  out.width = '100%'
+)
+library(data.table)
+library(tidyverse)
+library(highcharter)
+library(plotly)
+library(smacof)
+library(uwot)
+library(pals)
+library(heatmaply)
+library(ggdist)
+library(rtracklayer)
+library(crosstalk)
+library(trelliscopejs)
+library(DT)
+library(reticulate)
+np <- import('numpy')
+
+plot_ly()
+highchart()
+heatmaply(matrix(1:4, 2))
+```
+
+# Mapping {.tabset .tabset-pills}
+
+## All {.tabset}
+
+```{r}
+d <- list.files('~/Documents/MED4_collab/data/qc/stats', full.names = T) %>% 
+  setNames(., sub('.txt', '', basename(.))) %>%
+  lapply(fread) %>% 
+  bind_rows(.id = 'samp') %>%
+  filter(!grepl('dist_freq|chrom_freq|pair_types', V1)) %>%
+  mutate(V2 = as.integer(V2), 
+         V1 = sub('summary/', '', V1)) %>%
+  filter(!grepl('^frac_', V1)) %>% 
+  pivot_wider(names_from = V1, values_from = V2) %>%
+  mutate(type = sub('-.*', '', samp))
+
+pd <- d[,c('samp','type','total_unmapped','total_single_sided_mapped','total_mapped')] %>%
+  pivot_longer(-c(samp,type), values_to = 'num') %>%
+  mutate(name = sub('total_', '', name)) %>%
+  group_by(samp) %>%
+  mutate(perc = 100 * num / sum(num),
+         name = factor(name, c('unmapped','single_sided_mapped','mapped'))) %>%
+  ungroup()
+
+
+```
+
+
+### Percentage
+
+```{r}
+  
+hchart(pd, 'column', hcaes(x = samp, y = perc, group = name),
+       stacking = "normal") %>%
+  hc_xAxis(title = list(text = 'Sample')) %>%
+  hc_yAxis(title = list(text = 'Percentage of pairs'),
+           min = 0, max = 100) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_exporting(
+        enabled = TRUE,
+        buttons = list(
+          customButton = list(text = 'Linear',onclick = JS("function() {this.yAxis[0].update({type: 'linear'});}")),
+          customButton2 = list(text = 'Log', onclick = JS("function() {this.yAxis[0].update({type: 'logarithmic'});}"))
+        )
+      )
+
+```
+
+
+### Count
+
+```{r}
+hchart(pd, 'column', hcaes(x = samp, y = num, group = name),
+       stacking = "normal") %>%
+  hc_xAxis(title = list(text = 'Sample')) %>%
+  hc_yAxis(title = list(text = 'Number of pairs')) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_exporting(
+        enabled = TRUE,
+        buttons = list(
+          customButton = list(text = 'Linear',onclick = JS("function() {this.yAxis[0].update({type: 'linear'});}")),
+          customButton2 = list(text = 'Log', onclick = JS("function() {this.yAxis[0].update({type: 'logarithmic'});}"))
+        )
+      )
+```
+
+
+## Mapped {.tabset}
+
+```{r}
+
+pd <- d[,c('samp','type','total_dups','total_nodups')] %>%
+  pivot_longer(-c(samp,type), values_to = 'num') %>%
+  mutate(name = sub('total_', '', name)) %>%
+  group_by(samp) %>%
+  mutate(perc = 100 * num / sum(num)) %>%
+  ungroup()
+
+
+```
+
+### Percentage
+
+```{r}
+  
+hchart(pd, 'column', hcaes(x = samp, y = perc, group = name),
+       stacking = "normal") %>%
+  hc_xAxis(title = list(text = 'Sample')) %>%
+  hc_yAxis(title = list(text = 'Percentage of pairs'),
+           min = 0, max = 100) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_exporting(
+        enabled = TRUE,
+        buttons = list(
+          customButton = list(text = 'Linear',onclick = JS("function() {this.yAxis[0].update({type: 'linear'});}")),
+          customButton2 = list(text = 'Log', onclick = JS("function() {this.yAxis[0].update({type: 'logarithmic'});}"))
+        )
+      )
+
+```
+
+
+### Count
+
+```{r}
+hchart(pd, 'column', hcaes(x = samp, y = num, group = name),
+       stacking = "normal") %>%
+  hc_xAxis(title = list(text = 'Sample')) %>%
+  hc_yAxis(title = list(text = 'Number of pairs')) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_exporting(
+        enabled = TRUE,
+        buttons = list(
+          customButton = list(text = 'Linear',onclick = JS("function() {this.yAxis[0].update({type: 'linear'});}")),
+          customButton2 = list(text = 'Log', onclick = JS("function() {this.yAxis[0].update({type: 'logarithmic'});}"))
+        )
+      )
+```
+
+
+## Unique {.tabset}
+
+
+```{r}
+
+pd <- d[,c('samp','type','cis','trans')] %>%
+  pivot_longer(-c(samp,type), values_to = 'num') %>%
+  mutate(name = sub('total_', '', name)) %>%
+  group_by(samp) %>%
+  mutate(perc = 100 * num / sum(num),
+         name = factor(name, c('trans','cis'))) %>%
+  ungroup()
+
+
+```
+
+### Percentage
+
+```{r}
+  
+hchart(pd, 'column', hcaes(x = samp, y = perc, group = name),
+       stacking = "normal") %>%
+  hc_xAxis(title = list(text = 'Sample')) %>%
+  hc_yAxis(title = list(text = 'Percentage of pairs'),
+           min = 0, max = 100) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_exporting(
+        enabled = TRUE,
+        buttons = list(
+          customButton = list(text = 'Linear',onclick = JS("function() {this.yAxis[0].update({type: 'linear'});}")),
+          customButton2 = list(text = 'Log', onclick = JS("function() {this.yAxis[0].update({type: 'logarithmic'});}"))
+        )
+      )
+
+```
+
+
+### Count
+
+```{r}
+hchart(pd, 'column', hcaes(x = samp, y = num, group = name),
+       stacking = "normal") %>%
+  hc_xAxis(title = list(text = 'Sample')) %>%
+  hc_yAxis(title = list(text = 'Number of pairs')) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_exporting(
+        enabled = TRUE,
+        buttons = list(
+          customButton = list(text = 'Linear',onclick = JS("function() {this.yAxis[0].update({type: 'linear'});}")),
+          customButton2 = list(text = 'Log', onclick = JS("function() {this.yAxis[0].update({type: 'logarithmic'});}"))
+        )
+      )
+```
+
+
+## Complexity
+
+```{r}
+hchart(d, 'column', hcaes(x = samp, y = complexity_naive),
+       stacking = "normal") %>%
+  hc_xAxis(title = list(text = 'Sample')) %>%
+  hc_yAxis(title = list(text = 'Estimated complexity')) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_exporting(
+        enabled = TRUE,
+        buttons = list(
+          customButton = list(text = 'Linear',onclick = JS("function() {this.yAxis[0].update({type: 'linear'});}")),
+          customButton2 = list(text = 'Log', onclick = JS("function() {this.yAxis[0].update({type: 'logarithmic'});}"))
+        )
+      )
+```
+
+# {.unlisted .unnumbered .toc-ignore}
+
+---
+
+# Matrix similarity
+
+## Matrix
+
+```{r}
+
+clrs <- tableau20()[rep(c(1,3,5), each = 3)]
+
+
+ps <- list.files('~/Documents/MED4_collab/data/qc/exp', pattern = '1000.cis.(der|log).tsv', 
+           recursive = T, full.names = T) %>%
+  split(., sub('.*\\.(.*)\\.tsv', '\\1', .)) %>%
+  lapply(function(x) {
+    split(x, basename(dirname(x))) %>%
+      lapply(function(y) {
+        fread(y) -> dd
+        dd[,!(colnames(dd) %in% c('diag_bin_start', 'diag_bin_end')),with=F]
+      })
+  })
+
+pd <- ps$der %>%
+  rbindlist(idcol = 'samp') %>%
+  mutate(type = sub('-.*', '', samp) %>% factor(c('NTC','M1','M4'))) %>%
+  arrange(type, samp) %>%
+  filter(type != samp) %>%
+  mutate(rep = sub('.*-', 'Rep ', samp),
+         samp = fct_inorder(samp)) %>%
+  filter(s_bp < 1.5e8) 
+
+ann <- pd[,c('type', 'samp')] %>%
+  distinct(samp, type) %>%
+  column_to_rownames('samp')
+clrss <- ann %>% mutate(clr = clrs) %>% distinct() %>% deframe()
+md <- distinct(pd[,c('samp','type','rep')])
+
+f <- fread('~/Documents/MED4_collab/ref/mm10.chrom.sizes')$V2 %>% {./sum(.)}
+
+hc <- list.files('~/Documents/MED4_collab/data/hicrep/50000/5', full.names = T) %>%
+  tibble(f = .) %>%
+  group_by(f) %>%
+  do(., tibble(v = sum(fread(.$f, skip = 2)[[1]] * f))) %>%
+  ungroup() %>%
+  mutate(f = sub('.txt', '', basename(f))) %>%
+  separate(f, c('s1','s2'), '\\.') %>%
+  {rbind(., .[,c(2,1,3)] %>% `names<-`(c('s1','s2','v')))} %>%
+  {rbind(., tibble(s1 = unique(.$s1, .$s2), s2 = s1, v = 1))} %>%
+  distinct() %>%
+  arrange(s1, s2) %>%
+  pivot_wider(names_from = 's2', values_from = 'v') %>%
+  column_to_rownames('s1') %>%
+  .[levels(pd$samp), levels(pd$samp)]
+
+hc %>%
+  heatmaply(row_side_colors = ann,
+            row_side_palette = clrss,
+            col_side_colors = ann,
+            col_side_palette = clrss)
+
+```
+
+## UMAP
+
+```{r}
+as.dist(1 - hc) %>%
+  umap(n_components = 3, n_neighbors = 5) %>%
+  as.data.frame() %>%
+  mutate(samp = colnames(hc)) %>%
+  merge(md) %>%
+  plot_ly(x = ~V1, y = ~V2, z = ~V3, type = 'scatter3d', mode = 'markers',
+          color = ~type, colors = clrss) %>%
+  layout(scene = list(xaxis = list(title = 'Dim 1'),
+                      yaxis = list(title = 'Dim 2'),
+                      zaxis = list(title = 'Dim 3')))
+```
+
+# {.unlisted .unnumbered .toc-ignore}
+
+---
+
+# Contact decay {.tabset}
+
+## P(s)
+
+```{r}
+ps$log %>%
+  rbindlist(idcol = 'samp') %>%
+  merge(md) %>%
+  filter(s_bp < 1.5e8) %>%
+  hchart('line', hcaes(x = s_bp, y = balanced.avg, group = samp)) %>%
+  hc_xAxis(type = 'logarithmic', title = list(text = 'Genomic separation')) %>%
+  hc_yAxis(type = 'logarithmic', title = list(text = 'Contact probability')) %>%
+  hc_colors(clrs) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_plotOptions(line = list(marker = list(enabled = F)))
+```
+
+## P'(s)
+
+```{r}
+hchart(pd, 'line', hcaes(x = s_bp, y = slope, group = samp)) %>%
+  hc_xAxis(type = 'logarithmic', title = list(text = 'Genomic separation')) %>%
+  hc_yAxis(title = list(text = 'Contact probability decay')) %>%
+  hc_colors(clrs) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_plotOptions(line = list(marker = list(enabled = F)))
+```
+
+# {.unlisted .unnumbered .toc-ignore}
+
+---
+
+# Compartments
+
+## Global similarity {.tabset .tabset-pills}
+
+### Correlation matrix
+
+```{r}
+bsz <- '50000'
+m <- list.files('~/Documents/MED4_collab/data/qc/eig', pattern = paste0('^', bsz, '.cis.vecs.tsv'), 
+                full.names = T, recursive = T) %>%
+  setNames(., basename(dirname(.))) %>%
+  lapply(function(x) fread(x)$E1) %>%
+  bind_cols() %>%
+  .[,levels(pd$samp)] %>%
+  na.omit()
+
+
+cor(m) %>%
+  heatmaply(row_side_colors = ann,
+            row_side_palette = clrss,
+            col_side_colors = ann,
+            col_side_palette = clrss)
+```
+
+### PCA
+
+```{r}
+res <- t(m) %>% 
+  prcomp()
+
+axs <- summary(res)$importance[2,] %>% 
+  mapply(function(x, y) {sprintf('%s (%.2f%%)', y, x * 100)}, ., names(.))
+
+res$x %>%
+  as.data.frame() %>%
+  rownames_to_column('samp') %>%
+  merge(md) %>%
+  plot_ly(x = ~PC1, y = ~PC2, z = ~PC3, type = 'scatter3d', mode = 'markers',
+          color = ~type, colors = clrss) %>%
+  layout(scene = list(xaxis = list(title = axs[1]),
+                      yaxis = list(title = axs[2]),
+                      zaxis = list(title = axs[3])))
+```
+
+### UMAP {.tabset}
+
+#### Euclidean
+
+```{r}
+umap(t(m), n_components = 3, metric = 'euclidean', n_neighbors = 5) %>%
+  as.data.frame() %>%
+  mutate(samp = colnames(m)) %>%
+  merge(md) %>%
+  plot_ly(x = ~V1, y = ~V2, z = ~V3, type = 'scatter3d', mode = 'markers',
+          color = ~type, colors = clrss) %>%
+  layout(scene = list(xaxis = list(title = 'Dim 1'),
+                      yaxis = list(title = 'Dim 2'),
+                      zaxis = list(title = 'Dim 3')))
+```
+
+#### Correlation
+
+```{r}
+umap(t(m), n_components = 3, metric = 'correlation', n_neighbors = 5) %>%
+  as.data.frame() %>%
+  mutate(samp = colnames(m)) %>%
+  merge(md) %>%
+  plot_ly(x = ~V1, y = ~V2, z = ~V3, type = 'scatter3d', mode = 'markers',
+          color = ~type, colors = clrss) %>%
+  layout(scene = list(xaxis = list(title = 'Dim 1'),
+                      yaxis = list(title = 'Dim 2'),
+                      zaxis = list(title = 'Dim 3')))
+```
+
+## {.unlisted .unnumbered .toc-ignore}
+
+---
+
+## Distribution
+
+
+
+```{r, dev = 'svg'}
+m %>% 
+  mutate(idx = 1:n()) %>% 
+  pivot_longer(-idx, names_to = 'samp', values_to = 'v') %>%
+  mutate(samp = factor(samp, levels(pd$samp))) %>%
+  merge(md) %>%
+  ggplot(aes(x = samp,y  = v, color = type, fill = type)) +
+  geom_hline(yintercept = 0) +
+  geom_violin(color = NA, alpha = .5) +
+  stat_pointinterval() +
+  scale_fill_manual(values = clrss) +
+  scale_color_manual(values = clrss) +
+  facet_wrap(~type, scales = 'free_x',nrow=1) +
+  scale_x_discrete(labels = function(x) sub('Rep', 'Rep ', sub('.*\\ ', '', x))) +
+  labs(y = 'Compartment score') +
+  coord_cartesian(ylim = c(-2, 2)) +
+  scale_y_continuous(breaks = -2:2) +
+  theme(plot.background = element_blank(),
+        panel.background = element_blank(),
+        panel.grid = element_blank(),
+        legend.position = 'none',
+        axis.line.x = element_line(color = 'black'),
+        panel.grid.major.y = element_line(color = 'grey75', linetype = 'dashed'),
+        strip.background = element_rect(fill = 'black'),
+        strip.text = element_text(color = 'white'),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text = element_text(color = 'black'))
+```
+
+
+
+
+---
+
+## Compartment size
+
+```{r}
+o <- list.files('~/Documents/MED4_collab/data/qc/eig', pattern = paste0('^', bsz, '.cis.vecs.tsv'), 
+                full.names = T, recursive = T) %>%
+  setNames(., basename(dirname(.))) %>%
+  lapply(function(x) fread(x)$E1) %>%
+  bind_cols() %>%
+  cbind(fread(list.files('~/Documents/MED4_collab/data/qc/eig', pattern = paste0('^', bsz, '.cis.vecs.tsv'), 
+                full.names = T, recursive = T)[1] , select = 1:3), .) %>%
+  pivot_longer(-c('chrom','start','end'), 
+               names_to = 'samp', values_to = 'score') %>% 
+  dplyr::rename(chr = chrom) %>% 
+  filter(grepl('-[123]$', samp)) %>% 
+  na.omit() %>% 
+  add_count(chr, start) %>% 
+  filter(n == max(n)) %>% 
+  dplyr::select(-n) 
+
+
+dm <- o %>%
+  mutate(idx = as.integer(start / as.integer(bsz))) %>%
+  arrange(samp, chr, idx) 
+
+dl <- distinct(dm, chr, idx) %>%
+  split(., .$chr) %>%
+  lapply(function(x) {
+    group_by(x, gw = cumsum(c(1, diff(idx) != 1))) %>%
+      summarise(n = n(), i = idx[1], j = idx[n]) %>%
+      ungroup()
+  }) %>%
+  bind_rows(.id = 'chr') %>%
+  group_by(chr) %>%
+  top_n(1, n) %>%
+  ungroup() %>%
+  mutate(l = n * as.integer(bsz) / 1e6)
+
+ac <- split(dm, dm$samp) %>%
+  lapply(function(x) {
+    split(x, x$chr) %>%
+      lapply(function(y) {
+        y %>%
+          dplyr::filter(y$idx > dl[dl$chr == y$chr[1],]$i &
+                          y$idx < dl[dl$chr == y$chr[1],]$j) %>%
+          pull(score) %>%
+          acf(na.action = na.pass, plot = F,
+              lag.max = dl[dl$chr == y$chr[1],]$n) %>%
+          {tibble(lag = .$lag[,,1], c = .$acf[,,1])} %>%
+          dplyr::filter(lag >= 0) %>%
+          mutate(lag = lag * as.integer(bsz),
+                 c = abs(c))
+      }) %>%
+      bind_rows(.id = 'chr') %>%
+      dplyr::filter(!(chr %in% c('chrY'))) %>%
+      group_by(lag) %>%
+      summarise(s = sd(c, na.rm = T) / sqrt(20),
+                c = mean(c, na.rm = T),
+                lo = c - s, hi = c + s) 
+  }) %>%
+  bind_rows(.id = 'samp') %>%
+  na.omit() %>%
+  dplyr::filter(lag != 0)  %>%
+  merge(md) %>%
+  mutate(samp = factor(samp, levels(md$samp))) %>%
+  arrange(samp)
+
+ac %>% 
+  filter(between(lag, 0, 3e6)) %>%
+  hchart('line', hcaes(x = lag, y = c, group = samp)) %>%
+  hc_colors(clrs) %>%
+  hc_chart(zoomType = 'xy') %>%
+  hc_xAxis(title = list(text = 'Lag')) %>%
+  hc_yAxis(title = list(text = 'Autocorrelation')) %>%
+  hc_plotOptions(line = list(marker = list(enabled = F)))
+```
+
+---
+
+# Insulation
+
+## Correlation
+
+```{r}
+i <- list.files('~/Documents/MED4_collab/data/qc/ins', full.names = T, pattern = '25000.1000000.tsv', recursive = T) %>%
+  setNames(., basename(dirname(.))) %>%
+  lapply(fread)
+
+lapply(i, `[[`, 5) %>%
+  .[levels(pd$samp)] %>%
+  bind_cols() %>%
+  na.omit() %>%
+  cor() %>%
+  heatmaply(row_side_colors = ann,
+            row_side_palette = clrss,
+            col_side_colors = ann,
+            col_side_palette = clrss)
+
+```
+
+---
+
+## # of insulating loci
+
+```{r}
+lapply(i, function(x) {tibble(n = sum(na.omit(x[[7]]) > .1))}) %>% 
+  bind_rows(.id = 'samp') %>%
+  merge(md) %>%
+  mutate(samp = factor(samp, levels(md$samp))) %>%
+  arrange(samp) %>%
+  mutate(clr = clrs) %>%
+  hchart('point', hcaes(x = samp, y = n, color = clr)) %>%
+  hc_xAxis(title = NULL) %>%
+  hc_yAxis(title = list(text = '# of bins with boundary strength >0.1 <br> @25kb resolution with 1mb window size',
+                        useHTML = T), useHTML = T) %>%
+  hc_tooltip(headerFormat = '<span style="font-size: 10px">{point.key}</span><br/>')
+```
+
+---
+
+
+
+

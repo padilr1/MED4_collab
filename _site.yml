@@ -4,4 +4,6 @@ navbar:
   left:
     - text: "RNAseq Analysis"
       href: index.html
+    - text: "Preliminary HI-C Results"
+      href: hic_preliminary.html
 output_dir: "docs"
