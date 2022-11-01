@@ -6,4 +6,6 @@ navbar:
       href: index.html
     - text: "Preliminary HI-C Results"
       href: hic_preliminary.html
+    - text: "Preliminary loop analysis"
+      href: prelim_loop_analysis.html
 output_dir: "docs"

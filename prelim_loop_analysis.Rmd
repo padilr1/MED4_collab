@@ -1,0 +1,137 @@
+---
+title: ""
+author: ""
+date: ""
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    collapsed: false
+    number_sections: false
+    toc_depth: 3
+    smooth_scroll: false
+    theme: cerulean
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(HiCDCPlus)
+library(ggplot2)
+library(knitr)
+library(reshape2)
+library(tidyverse)
+library(rtracklayer)
+library(isoband)
+library(sf)
+library(MASS)
+library(lwgeom)
+library(ggrepel)
+library(hexbin)
+library(ggrastr)
+library(viridis)
+library(pals)
+library(patchwork)
+library(highcharter)
+library(dplyr)
+library(GenomicRanges)
+library(reactable)
+library(data.table)
+#
+library(DESeq2)
+library(edgeR)
+#
+library(plotly)
+#
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+library(org.Mm.eg.db)
+library(ChIPseeker)
+setwd("~/Documents/MED4_collab")
+```
+
+```{r,loading_R_objects,include = FALSE}
+load("~/Documents/MED4_collab/data/HiCDCPlus/counts/df_list_V1.RData")
+volc <- function(r, x, y, ylab, ttl) {
+  d <- as.data.frame(r) %>%
+    dplyr::rename(x = !!x, y = !!y) %>%
+    mutate(kind = case_when((abs(x) > 1 & y < .05) ~ 'DE',
+                            abs(x) > 1 ~ '|logFC|>1',
+                            y < .05 ~ 'FDR<0.05',
+                            T ~ 'NS'),
+           y = -log10(y))
+  ct <- d %>% 
+    dplyr::filter(kind == 'DE') %>%
+    mutate(up = x > 0) %>%
+    dplyr::count(up) %>%
+    mutate(x = ifelse(up, Inf, -Inf),
+           y = Inf,
+           h = as.numeric(up))
+  ggplot(d, aes(x, y, color = kind)) +
+    geom_vline(xintercept = c(-1, 1), linetype = 'dashed') +
+    geom_hline(yintercept = -log10(0.05), linetype = 'dashed') +
+    geom_point(alpha = .5) +
+    geom_label(aes(x = x, y = y, label = n, hjust = h),
+              vjust = 1, data = ct, inherit.aes = F) +
+    scale_color_manual(values = c('orange','forestgreen', 'red',  'black')) +
+    labs(x = x, y = ylab, title = ttl) + theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        legend.title = element_blank())
+}
+```
+
+# Results
+
+Applying a modified DESeq2 approach, differential loop analysis was performed, assessing NTC versus Knockdown samples (M1 and M4 were pooled together). Differential loops from all chromosomes were also pooled together.
+
+```{r,results_table,echo = FALSE,warning=FALSE,message=FALSE,out.width='100%'}
+df_list %>% reactable()
+```
+
+# MA plot {.tabset}
+
+## No cutoff
+```{r,MA_plot_1,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+ggplot(data=df_list,aes(x=baseMean,y=log2FoldChange)) +
+  geom_point() +
+  theme_minimal() +
+  labs(y="log2FoldChange (NTC/Knockdown)",x="Normalized Mean Counts") +
+  geom_hline(yintercept=0,color = "red")
+```
+
+## Cutoff = 400
+Using a cutoff of 400 normalized mean counts
+```{r,MA_plot_2,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+ggplot(data=df_list[df_list$baseMean > 400,],aes(x=baseMean,y=log2FoldChange)) +
+  geom_point() +
+  theme_minimal() +
+  labs(y="log2FoldChange (NTC/Knockdown)",x="Normalized Mean Counts") +
+  geom_hline(yintercept=0,color = "red")
+```
+
+## Cutoff = 1000
+Using a cutoff of 100 normalized mean counts
+```{r,MA_plot_3,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+ggplot(data=df_list[df_list$baseMean > 1000,],aes(x=baseMean,y=log2FoldChange)) +
+  geom_point() +
+  theme_minimal() +
+  labs(y="log2FoldChange (NTC/Knockdown)",x="Normalized Mean Counts") +
+  geom_hline(yintercept=0,color = "red")
+```
+
+## Cutoff = 1500
+Using a cutoff of 100 normalized mean counts
+```{r,MA_plot_4,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+ggplot(data=df_list[df_list$baseMean > 1500,],aes(x=baseMean,y=log2FoldChange)) +
+  geom_point() +
+  theme_minimal() +
+  labs(y="log2FoldChange (NTC/Knockdown)",x="Normalized Mean Counts") +
+  geom_hline(yintercept=0,color = "red")
+```
+
+# Volcano plot
+
+```{r,volcano_plot,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+volc(df_list,'log2FoldChange','padj','-log10(FDR)','')
+```
