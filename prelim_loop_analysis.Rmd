@@ -15,41 +15,17 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(HiCDCPlus)
-library(ggplot2)
-library(knitr)
-library(reshape2)
-library(tidyverse)
-library(rtracklayer)
-library(isoband)
-library(sf)
-library(MASS)
-library(lwgeom)
-library(ggrepel)
-library(hexbin)
-library(ggrastr)
-library(viridis)
-library(pals)
-library(patchwork)
-library(highcharter)
 library(dplyr)
-library(GenomicRanges)
-library(reactable)
-library(data.table)
-#
-library(DESeq2)
-library(edgeR)
-#
+library(tidyverse)
 library(plotly)
-#
-library(TxDb.Mmusculus.UCSC.mm10.knownGene)
-library(org.Mm.eg.db)
-library(ChIPseeker)
+library(DESeq2)
+library(ggplot2)
+library(xfun)
+library(data.table)
 setwd("~/Documents/MED4_collab")
 ```
 
 ```{r,loading_R_objects,include = FALSE}
-load("~/Documents/MED4_collab/data/HiCDCPlus/counts/df_list_V1.RData")
 volc <- function(r, x, y, ylab, ttl) {
   d <- as.data.frame(r) %>%
     dplyr::rename(x = !!x, y = !!y) %>%
@@ -66,72 +42,123 @@ volc <- function(r, x, y, ylab, ttl) {
            y = Inf,
            h = as.numeric(up))
   ggplot(d, aes(x, y, color = kind)) +
-    geom_vline(xintercept = c(-1, 1), linetype = 'dashed') +
-    geom_hline(yintercept = -log10(0.05), linetype = 'dashed') +
     geom_point(alpha = .5) +
     geom_label(aes(x = x, y = y, label = n, hjust = h),
-              vjust = 1, data = ct, inherit.aes = F) +
+               vjust = 1, data = ct, inherit.aes = F) +
     scale_color_manual(values = c('orange','forestgreen', 'red',  'black')) +
-    labs(x = x, y = ylab, title = ttl) + theme(axis.line = element_line(colour = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        legend.title = element_blank())
+    labs(x = "log2FoldChange (NTC/MED4KD)", y = ylab, title = ttl) + theme(axis.line = element_line(colour = "black"),
+                                               panel.grid.major = element_blank(),
+                                               panel.grid.minor = element_blank(),
+                                               panel.border = element_blank(),
+                                               panel.background = element_blank(),
+                                               legend.title = element_blank())
 }
+#
+mdat <- data.frame(
+  sample = c("NTC-1","NTC-2","NTC-3","M1_1","M1-2","M1-3","M4-1","M4-2","M4-3"),
+  condition = c("KD","KD","KD","KD","KD","KD","NTC","NTC","NTC")
+) %>%
+  column_to_rownames("sample")
+#
+load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/dds.RData")
+load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/vst.RData")
+load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/resLFC.RData")
+```
+
+```{r,preprocess,include=FALSE}
+# dds <- rbind(binsize10000_chr1_DESeq2_obj,binsize10000_chr2_DESeq2_obj,binsize10000_chr3_DESeq2_obj,binsize10000_chr4_DESeq2_obj,binsize10000_chr5_DESeq2_obj,binsize10000_chr6_DESeq2_obj,binsize10000_chr7_DESeq2_obj,binsize10000_chr8_DESeq2_obj,binsize10000_chr9_DESeq2_obj,binsize10000_chr10_DESeq2_obj,binsize10000_chr11_DESeq2_obj,binsize10000_chr12_DESeq2_obj,binsize10000_chr13_DESeq2_obj,binsize10000_chr14_DESeq2_obj,binsize10000_chr15_DESeq2_obj,binsize10000_chr16_DESeq2_obj,binsize10000_chr17_DESeq2_obj,binsize10000_chr18_DESeq2_obj,binsize10000_chr19_DESeq2_obj)
+#
+# vst <- varianceStabilizingTransformation(dds)
+#
+# rd <- dds %>%
+#   results(contrast = c('condition', 'KD', 'NTC')) %>%
+#   data.frame() %>%
+#   na.omit()
+#
+# s <- list.files(path = "~/Documents/MED4_collab/data/HiCDCPlus/binsize10000", pattern = '.txt',full.names = FALSE,recursive = FALSE) %>%
+#   tibble(f = .) %>%
+#   separate(f,c(NA,NA,NA,"chr"),'\\_',F) %>%
+#   mutate(f = file.path('~/Documents/MED4_collab/data/HiCDCPlus/binsize10000', f))
+# s$chr <- gsub(".txt","",s$chr)
+# d <- deframe(s[,c('chr', 'f')])
+# rd_list <- lapply(d,fread) %>%
+#   rbindlist()
+# write.csv(rd_list,file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/rd_list.csv",row.names = FALSE)
+# library(pheatmap)
+# vst_mat <- assay(vst)
+# vst_cor <- cor(vst_mat)
+# pheatmap(vst_cor)
 ```
 
 # Results
 
-Applying a modified DESeq2 approach, differential loop analysis was performed, assessing NTC versus Knockdown samples (M1 and M4 were pooled together). Differential loops from all chromosomes were also pooled together.
+Applying a modified DESeq2 approach, differential loop analysis was performed, assessing NTC versus Knockdown samples (M1 and M4 were pooled together). Differential loops from all chromosomes were also pooled together. Log2FoldChange is NTC over MED4KD.
 
-```{r,results_table,echo = FALSE,warning=FALSE,message=FALSE,out.width='100%'}
-df_list %>% reactable()
+```{r echo=FALSE}
+xfun::embed_file("~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/rd_list.csv")
+```
+
+# PCA {.tabset}
+
+## All loops
+```{r,PCA,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+rv <- rowVars(assay(vst))
+pc <- prcomp(t(assay(vst)))
+condition <- mdat$condition
+scores <- data.frame(pc$x, condition)
+percentage <- round(pc$sdev / sum(pc$sdev) * 100, 2)
+percentage <- paste( colnames(scores), "(", paste( as.character(percentage), "%", ")", sep="") )
+p <- plot_ly(scores,x=scores$PC1,y=scores$PC2,text=rownames(scores),mode="markers",color=factor(condition),marker=list(size=11),colors = "Dark2")
+p <- layout(p,title="",   xaxis = list(title = percentage[1]),
+            yaxis = list(title = percentage[2]))
+p
+```
+
+## Top 500 most variable loops
+```{r,PCA_500,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+rv <- rowVars(assay(vst))
+select <- order(rv, decreasing=T)[seq_len(min(500,length(rv)))]
+pc <- prcomp(t(assay(vst)[select,]))
+condition <- mdat$condition
+scores <- data.frame(pc$x, condition)
+percentage <- round(pc$sdev / sum(pc$sdev) * 100, 2)
+percentage <- paste( colnames(scores), "(", paste( as.character(percentage), "%", ")", sep="") )
+p <- plot_ly(scores,x=scores$PC1,y=scores$PC2,text=rownames(scores),mode="markers",color=factor(condition),marker=list(size=11),colors = "Dark2")
+p <- layout(p,title="",   xaxis = list(title = percentage[1]),
+            yaxis = list(title = percentage[2]))
+p
 ```
 
 # MA plot {.tabset}
 
+The logfold changes were shrunken prior to plotting. 
+
 ## No cutoff
 ```{r,MA_plot_1,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
-ggplot(data=df_list,aes(x=baseMean,y=log2FoldChange)) +
-  geom_point() +
-  theme_minimal() +
-  labs(y="log2FoldChange (NTC/Knockdown)",x="Normalized Mean Counts") +
-  geom_hline(yintercept=0,color = "red")
+# resLFC <- DESeq2::lfcShrink(dds=dds, contrast=c("condition","NTC","KD"),type = "ashr")
+DESeq2::plotMA(resLFC, ylim=c(-0.01,0.01),ylab="log2FoldChange (NTC/MED4KD)",colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
 ```
 
-## Cutoff = 400
+## Cutoff = 500
 Using a cutoff of 400 normalized mean counts
 ```{r,MA_plot_2,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
-ggplot(data=df_list[df_list$baseMean > 400,],aes(x=baseMean,y=log2FoldChange)) +
-  geom_point() +
-  theme_minimal() +
-  labs(y="log2FoldChange (NTC/Knockdown)",x="Normalized Mean Counts") +
-  geom_hline(yintercept=0,color = "red")
+DESeq2::plotMA(resLFC[resLFC$baseMean > 500,], ylim=c(-0.01,0.01),ylab="log2FoldChange (NTC/MED4KD)",colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
 ```
 
 ## Cutoff = 1000
 Using a cutoff of 100 normalized mean counts
 ```{r,MA_plot_3,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
-ggplot(data=df_list[df_list$baseMean > 1000,],aes(x=baseMean,y=log2FoldChange)) +
-  geom_point() +
-  theme_minimal() +
-  labs(y="log2FoldChange (NTC/Knockdown)",x="Normalized Mean Counts") +
-  geom_hline(yintercept=0,color = "red")
+DESeq2::plotMA(resLFC[resLFC$baseMean > 1000,], ylim=c(-0.01,0.01),ylab="log2FoldChange (NTC/MED4KD)",colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
 ```
 
 ## Cutoff = 1500
 Using a cutoff of 100 normalized mean counts
 ```{r,MA_plot_4,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
-ggplot(data=df_list[df_list$baseMean > 1500,],aes(x=baseMean,y=log2FoldChange)) +
-  geom_point() +
-  theme_minimal() +
-  labs(y="log2FoldChange (NTC/Knockdown)",x="Normalized Mean Counts") +
-  geom_hline(yintercept=0,color = "red")
+DESeq2::plotMA(resLFC[resLFC$baseMean > 1500,], ylim=c(-0.01,0.01),ylab="log2FoldChange (NTC/MED4KD)",colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
 ```
 
 # Volcano plot
 
 ```{r,volcano_plot,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
-volc(df_list,'log2FoldChange','padj','-log10(FDR)','')
+volc(resLFC,'log2FoldChange','padj','-log10(FDR)','')
 ```
