@@ -18,10 +18,9 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(tidyverse)
 library(plotly)
-library(DESeq2)
 library(ggplot2)
-library(xfun)
 library(data.table)
+library(DESeq2)
 setwd("~/Documents/MED4_collab")
 ```
 
@@ -46,7 +45,7 @@ volc <- function(r, x, y, ylab, ttl) {
     geom_label(aes(x = x, y = y, label = n, hjust = h),
                vjust = 1, data = ct, inherit.aes = F) +
     scale_color_manual(values = c('orange','forestgreen', 'red',  'black')) +
-    labs(x = "log2FoldChange (NTC/MED4KD)", y = ylab, title = ttl) + theme(axis.line = element_line(colour = "black"),
+    labs(x = "log2FoldChange (MED4KD/NTC)", y = ylab, title = ttl) + theme(axis.line = element_line(colour = "black"),
                                                panel.grid.major = element_blank(),
                                                panel.grid.minor = element_blank(),
                                                panel.border = element_blank(),
@@ -56,17 +55,20 @@ volc <- function(r, x, y, ylab, ttl) {
 #
 mdat <- data.frame(
   sample = c("NTC-1","NTC-2","NTC-3","M1_1","M1-2","M1-3","M4-1","M4-2","M4-3"),
-  condition = c("KD","KD","KD","KD","KD","KD","NTC","NTC","NTC")
+  condition = c("NTC","NTC","NTC","KD","KD","KD","KD","KD","KD")
 ) %>%
   column_to_rownames("sample")
-#
-load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/dds.RData")
-load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/vst.RData")
-load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/resLFC.RData")
+# save
+load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/dds.RData")
+load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/vst.RData")
+# load
+# load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/dds.RData")
+# load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/vst.RData")
+# load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/resLFC.RData")
 ```
 
 ```{r,preprocess,include=FALSE}
-# dds <- rbind(binsize10000_chr1_DESeq2_obj,binsize10000_chr2_DESeq2_obj,binsize10000_chr3_DESeq2_obj,binsize10000_chr4_DESeq2_obj,binsize10000_chr5_DESeq2_obj,binsize10000_chr6_DESeq2_obj,binsize10000_chr7_DESeq2_obj,binsize10000_chr8_DESeq2_obj,binsize10000_chr9_DESeq2_obj,binsize10000_chr10_DESeq2_obj,binsize10000_chr11_DESeq2_obj,binsize10000_chr12_DESeq2_obj,binsize10000_chr13_DESeq2_obj,binsize10000_chr14_DESeq2_obj,binsize10000_chr15_DESeq2_obj,binsize10000_chr16_DESeq2_obj,binsize10000_chr17_DESeq2_obj,binsize10000_chr18_DESeq2_obj,binsize10000_chr19_DESeq2_obj)
+# dds <- rbind(mustache_binsize10000_chr1_DESeq2_obj,mustache_binsize10000_chr2_DESeq2_obj,mustache_binsize10000_chr3_DESeq2_obj,mustache_binsize10000_chr4_DESeq2_obj,mustache_binsize10000_chr5_DESeq2_obj,mustache_binsize10000_chr6_DESeq2_obj,mustache_binsize10000_chr7_DESeq2_obj,mustache_binsize10000_chr8_DESeq2_obj,mustache_binsize10000_chr9_DESeq2_obj,mustache_binsize10000_chr10_DESeq2_obj,mustache_binsize10000_chr11_DESeq2_obj,mustache_binsize10000_chr12_DESeq2_obj,mustache_binsize10000_chr13_DESeq2_obj,mustache_binsize10000_chr14_DESeq2_obj,mustache_binsize10000_chr15_DESeq2_obj,mustache_binsize10000_chr16_DESeq2_obj,mustache_binsize10000_chr17_DESeq2_obj,mustache_binsize10000_chr18_DESeq2_obj,mustache_binsize10000_chr19_DESeq2_obj)
 #
 # vst <- varianceStabilizingTransformation(dds)
 #
@@ -75,27 +77,47 @@ load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/resLFC.RData")
 #   data.frame() %>%
 #   na.omit()
 #
-# s <- list.files(path = "~/Documents/MED4_collab/data/HiCDCPlus/binsize10000", pattern = '.txt',full.names = FALSE,recursive = FALSE) %>%
+# s <- list.files(path = "~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache", pattern = '.txt',full.names = FALSE,recursive = FALSE) %>%
 #   tibble(f = .) %>%
-#   separate(f,c(NA,NA,NA,"chr"),'\\_',F) %>%
-#   mutate(f = file.path('~/Documents/MED4_collab/data/HiCDCPlus/binsize10000', f))
+#   separate(f,c(NA,NA,NA,NA,"chr"),'\\_',F) %>%
+#   mutate(f = file.path('~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache', f))
 # s$chr <- gsub(".txt","",s$chr)
 # d <- deframe(s[,c('chr', 'f')])
 # rd_list <- lapply(d,fread) %>%
 #   rbindlist()
-# write.csv(rd_list,file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/rd_list.csv",row.names = FALSE)
+# write.csv(rd_list,file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/rd_list.csv",row.names = FALSE)
 # library(pheatmap)
 # vst_mat <- assay(vst)
+# vst_cor <- cor(vst_mat)
+# pheatmap(vst_cor)
+# #
+# rv <- rowVars(assay(vst))
+# select <- order(rv, decreasing=T)[seq_len(min(500,length(rv)))]
+# vst_mat <- assay(vst)[select,]
 # vst_cor <- cor(vst_mat)
 # pheatmap(vst_cor)
 ```
 
 # Results
 
-Applying a modified DESeq2 approach, differential loop analysis was performed, assessing NTC versus Knockdown samples (M1 and M4 were pooled together). Differential loops from all chromosomes were also pooled together. Log2FoldChange is NTC over MED4KD.
+Loops were firstly called using [Mustache](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02167-0). Afterwards, a union of significantly called loops in each condition (M1, M4 and NTC) was used for differential analysis using a modified DESeq2 approach via [HiCDCPlus](https://www.nature.com/articles/s41467-021-23749-x). Knockdown samples (M1 and M4) were pooled together. 
 
 ```{r echo=FALSE}
-xfun::embed_file("~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/rd_list.csv")
+xfun::embed_file("~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/diff_final.csv")
+# diff <- read.csv("~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/rd_list.csv")
+# diff$index <- sprintf("%s:%d:%d",diff$chr,diff$startI,diff$startJ)
+# # df$coordinates1 <- sprintf("%s:%d-%d",df$BIN1_CHR,df$BIN1_START,df$BIN1_END)
+# loops <- read.csv(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/mustache_loops.csv")
+# loops$index <- sprintf("%s:%d:%d",loops$BIN1_CHR,loops$BIN1_START,loops$BIN2_START)
+# loops_final <- loops %>%
+#   dplyr::select(c("coordinates1","coordinates2","index"))
+# diff_final <- left_join(diff,loops_final,by="index") %>%
+#   dplyr::distinct()
+# write.csv(diff_final,file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/diff_final.csv",row.names = FALSE)
+```
+
+```{r echo=FALSE,include=FALSE}
+# xfun::embed_file(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/mustache_loops.csv")
 ```
 
 # PCA {.tabset}
@@ -131,34 +153,43 @@ p
 
 # MA plot {.tabset}
 
-The logfold changes were shrunken prior to plotting. 
+Logfold change is <b> MED4KD over NTC </b>
 
 ## No cutoff
 ```{r,MA_plot_1,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
 # resLFC <- DESeq2::lfcShrink(dds=dds, contrast=c("condition","NTC","KD"),type = "ashr")
-DESeq2::plotMA(resLFC, ylim=c(-0.01,0.01),ylab="log2FoldChange (NTC/MED4KD)",colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
+DESeq2::plotMA(dds, ylim=c(-2,2),colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
 ```
 
-## Cutoff = 500
-Using a cutoff of 400 normalized mean counts
+## Cutoff = 50
+Using a cutoff of 50 normalized mean counts
 ```{r,MA_plot_2,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
-DESeq2::plotMA(resLFC[resLFC$baseMean > 500,], ylim=c(-0.01,0.01),ylab="log2FoldChange (NTC/MED4KD)",colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
+res <- results(dds,contrast=c("condition","KD","NTC")) %>%
+  as.data.frame() %>%
+  na.omit() %>%
+  rownames_to_column("loops") %>%
+  dplyr::select(c("baseMean","log2FoldChange","padj"))
+res$baseMean <- as.numeric(res$baseMean)
+res$log2FoldChange <- as.numeric(res$log2FoldChange)
+res$significant <- res$padj < 0.05
+res$significant <- as.logical(res$significant)
+res <- res %>%
+  dplyr::select(c("baseMean","log2FoldChange","significant"))
+DESeq2::plotMA(res[res$baseMean > 50,], ylim=c(-2,2),colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
 ```
 
-## Cutoff = 1000
+## Cutoff = 100
 Using a cutoff of 100 normalized mean counts
 ```{r,MA_plot_3,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
-DESeq2::plotMA(resLFC[resLFC$baseMean > 1000,], ylim=c(-0.01,0.01),ylab="log2FoldChange (NTC/MED4KD)",colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
-```
-
-## Cutoff = 1500
-Using a cutoff of 100 normalized mean counts
-```{r,MA_plot_4,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
-DESeq2::plotMA(resLFC[resLFC$baseMean > 1500,], ylim=c(-0.01,0.01),ylab="log2FoldChange (NTC/MED4KD)",colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
+DESeq2::plotMA(res[res$baseMean > 100,], ylim=c(-2,2),colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05)
 ```
 
 # Volcano plot
 
 ```{r,volcano_plot,echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
-volc(resLFC,'log2FoldChange','padj','-log10(FDR)','')
+res <- results(dds,contrast=c("condition","KD","NTC")) %>%
+  as.data.frame() %>%
+  na.omit() %>%
+  rownames_to_column("loops")
+volc(res,'log2FoldChange','padj','-log10(FDR)','')
 ```
