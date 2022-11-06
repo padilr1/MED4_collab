@@ -21,6 +21,7 @@ library(plotly)
 library(ggplot2)
 library(data.table)
 library(DESeq2)
+library(reactable)
 setwd("~/Documents/MED4_collab")
 ```
 
@@ -100,10 +101,15 @@ load(file="~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/vst.RDat
 
 # Results
 
-Loops were firstly called using [Mustache](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02167-0). Afterwards, a union of significantly called loops in each condition (M1, M4 and NTC) was used for differential analysis using a modified DESeq2 approach via [HiCDCPlus](https://www.nature.com/articles/s41467-021-23749-x). Knockdown samples (M1 and M4) were pooled together. 
+Loops were firstly called using [Mustache](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02167-0). Afterwards, a union of significantly called loops in each condition (M1, M4 and NTC) was used for differential analysis using a modified DESeq2 approach via [HiCDCPlus](https://www.nature.com/articles/s41467-021-23749-x). Knockdown samples (M1 and M4) were pooled together. Loops can be visualized using Hi-C contact maps found [here](http://206.12.101.70:8888/l/?d=IX1b0c4jQCyMPkO_xCqraQ).
 
-```{r echo=FALSE}
+```{r echo=FALSE,fig.cap="The number of significant loops (FDR < 0.05) is reported in each condition."}
 xfun::embed_file("~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/diff_final.csv")
+dt <- data.frame("M1" = 9028,
+           "M4" = 9089,
+           "NTC"= 8752)
+rownames(dt) <- "#_of_sig_loops"
+reactable(dt)
 # diff <- read.csv("~/Documents/MED4_collab/data/HiCDCPlus/binsize10000/mustache/rd_list.csv")
 # diff$index <- sprintf("%s:%d:%d",diff$chr,diff$startI,diff$startJ)
 # # df$coordinates1 <- sprintf("%s:%d-%d",df$BIN1_CHR,df$BIN1_START,df$BIN1_END)
