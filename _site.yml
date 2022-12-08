@@ -8,4 +8,6 @@ navbar:
       href: hic_preliminary.html
     - text: "Preliminary loop analysis"
       href: prelim_loop_analysis.html
+    - text: "Enhancer-Promoter loops"
+      href: enhancer_promoter_loops.html
 output_dir: "docs"

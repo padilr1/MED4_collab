@@ -1,0 +1,126 @@
+---
+title: ""
+author: ""
+date: ""
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    collapsed: false
+    number_sections: false
+    toc_depth: 3
+    smooth_scroll: false
+    theme: cerulean
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyverse)
+library(plotly)
+library(ggplot2)
+library(data.table)
+library(DESeq2)
+library(reactable)
+library(hictoolsr)
+setwd("~/Documents/MED4_collab")
+```
+
+Loops were firstly called using the [ABC Model](https://doi.org/10.1038/s41588-019-0538-0). Since this method integrates ATAC-seq, H3K27ac and gene expression data when calling enhancer-promoter (E-P) pairs, we can be more confident we are truly calling loops. After defining E-P loops, differential loop calling was performed using a modified DESeq2 approach via [Hictoolsr](https://github.com/EricSDavis/hictoolsr).
+
+# ABC model results
+```{r,ABC_MODEL,echo=FALSE,fig.cap="The number of significant loops (FDR < 0.05) is reported in each condition."}
+xfun::embed_file("~/Documents/MED4_collab/data/ABC_model_out/predictions/Enhancer_promoter_loops.csv")
+```
+
+# Differential loop analysis
+
+Differential loop analysis was performed at 1000kb resolution (ie. regions were binned at 10kb windows).
+
+## Raw counts {.tabset}
+
+### Counts
+```{r,rawCounts, echo=FALSE}
+load("~/Documents/MED4_collab/data/hictoolsr/loopCounts.1000bp.RData")
+df <- loopCounts %>% as.data.frame()
+df %>% reactable()
+```
+
+### E-P pairs
+```{r,E_P_PAIRS, echo=FALSE}
+bedpe <- fread("~/Documents/MED4_collab/data/ABC_model_out/ABC.enhancer_promoter.bed2d") %>%
+  as_ginteractions( keep.extra.columns = TRUE,
+  starts.in.df.are.0based = FALSE
+)
+bedpe %>% as.data.frame() %>% reactable()
+```
+
+## DESeq2 res
+```{r,DESEQ2_RES, include=FALSE}
+df$loops <- stringr::str_c(df$seqnames1,sep = ".",df$start1,df$end1,df$start2,df$end2)
+cnts <- df %>%
+  distinct() %>%
+  dplyr::select(c(20,11:19)) %>%
+  column_to_rownames("loops")
+colnames(cnts) <- gsub(".hic","",colnames(cnts))
+# mdat
+mdat <- data.frame(kind=colnames(cnts))
+mdat$condition <- "KD"
+mdat[7:9,"condition"] <- "NTC"
+mdat <- mdat %>%
+  column_to_rownames("kind")
+## Build DESeq data set
+for (n in 1:9) {
+  cnts[,n] <- as.integer(cnts[,n])
+}
+dds <- DESeqDataSetFromMatrix(countData = cnts,
+                              colData = mdat,
+                              design = ~ condition)
+dds <- DESeq(dds)
+vst <- varianceStabilizingTransformation(dds)
+```
+
+```{r,FINAL_RES, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+res <- results(dds,contrast=c("condition","KD","NTC")) %>%
+  as.data.frame() %>%
+  rownames_to_column("loops")
+res %>% reactable()
+```
+
+## PCA {.tabset}
+
+### Top 500 most variable loops
+```{r,PCA_500, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+rv <- rowVars(assay(vst))
+select <- order(rv, decreasing=T)[seq_len(min(500,length(rv)))]
+pc <- prcomp(t(assay(vst)[select,]))
+condition <- mdat$condition
+scores <- data.frame(pc$x, condition)
+percentage <- round(pc$sdev / sum(pc$sdev) * 100, 2)
+percentage <- paste( colnames(scores), "(", paste( as.character(percentage), "%", ")", sep="") )
+p <- plot_ly(scores,x=scores$PC1,y=scores$PC2,text=rownames(scores),mode="markers",color=factor(condition),marker=list(size=11),colors = "Dark2")
+p <- layout(p,title="",   xaxis = list(title = percentage[1]),
+            yaxis = list(title = percentage[2]))
+p
+```
+
+### All loops
+```{r,PCA_ALL, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+rv <- rowVars(assay(vst))
+pc <- prcomp(t(assay(vst)))
+condition <- mdat$condition
+scores <- data.frame(pc$x, condition)
+percentage <- round(pc$sdev / sum(pc$sdev) * 100, 2)
+percentage <- paste( colnames(scores), "(", paste( as.character(percentage), "%", ")", sep="") )
+p <- plot_ly(scores,x=scores$PC1,y=scores$PC2,text=rownames(scores),mode="markers",color=factor(condition),marker=list(size=11),colors = "Dark2")
+p <- layout(p,title="",   xaxis = list(title = percentage[1]),
+            yaxis = list(title = percentage[2]))
+p
+```
+
+## MA plot
+
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+DESeq2::plotMA(dds,colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05,ylim=c(-6,6))
+```
+
