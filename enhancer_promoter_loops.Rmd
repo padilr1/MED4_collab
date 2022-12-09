@@ -29,6 +29,11 @@ setwd("~/Documents/MED4_collab")
 Loops were firstly called using the [ABC Model](https://doi.org/10.1038/s41588-019-0538-0). Since this method integrates ATAC-seq, H3K27ac and gene expression data when calling enhancer-promoter (E-P) pairs, we can be more confident we are truly calling loops. After defining E-P loops, differential loop calling was performed using a modified DESeq2 approach via [Hictoolsr](https://github.com/EricSDavis/hictoolsr).
 
 # ABC model results
+
+![](~/Documents/MED4_collab/images/ABC_model.png)
+
+Activity (A) is calculated as the geometric mean of the read counts of ATAC-seq and H3K27ac chromatin immunoprecipitation sequencing (ChIP–seq) at element E, and Contact (C) as the KR-normalized Hi-C contact frequency between E and the promoter of gene G at 5-kb resolution
+
 ```{r,ABC_MODEL,echo=FALSE,fig.cap="The number of significant loops (FDR < 0.05) is reported in each condition."}
 xfun::embed_file("~/Documents/MED4_collab/data/ABC_model_out/predictions/Enhancer_promoter_loops.csv")
 ```
@@ -37,13 +42,22 @@ xfun::embed_file("~/Documents/MED4_collab/data/ABC_model_out/predictions/Enhance
 
 Differential loop analysis was performed at 1000kb resolution (ie. regions were binned at 10kb windows).
 
-## Raw counts {.tabset}
+## Raw counts {.tabset .tabset-pills}
 
-### Counts
-```{r,rawCounts, echo=FALSE}
+### Counts {.tabset}
+
+#### with chrX
+```{r,rawCountsOG, echo=FALSE}
 load("~/Documents/MED4_collab/data/hictoolsr/loopCounts.1000bp.RData")
 df <- loopCounts %>% as.data.frame()
 df %>% reactable()
+```
+
+#### without chrX
+```{r,rawCountsX, echo=FALSE}
+load("~/Documents/MED4_collab/data/hictoolsr/loopCounts.1000bp.withoutChrX.RData")
+dfX <- loopCounts %>% as.data.frame()
+dfX %>% reactable()
 ```
 
 ### E-P pairs
@@ -55,8 +69,10 @@ bedpe <- fread("~/Documents/MED4_collab/data/ABC_model_out/ABC.enhancer_promoter
 bedpe %>% as.data.frame() %>% reactable()
 ```
 
-## DESeq2 res
-```{r,DESEQ2_RES, include=FALSE}
+## DESeq2 res {.tabset}
+
+### with chrX
+```{r,FINAL_RES, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
 df$loops <- stringr::str_c(df$seqnames1,sep = ".",df$start1,df$end1,df$start2,df$end2)
 cnts <- df %>%
   distinct() %>%
@@ -78,18 +94,51 @@ dds <- DESeqDataSetFromMatrix(countData = cnts,
                               design = ~ condition)
 dds <- DESeq(dds)
 vst <- varianceStabilizingTransformation(dds)
-```
-
-```{r,FINAL_RES, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+#
 res <- results(dds,contrast=c("condition","KD","NTC")) %>%
   as.data.frame() %>%
   rownames_to_column("loops")
 res %>% reactable()
 ```
 
-## PCA {.tabset}
+### without chrX
+```{r,FINAL_RES_X, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+dfX$loops <- stringr::str_c(dfX$seqnames1,sep = ".",dfX$start1,dfX$end1,dfX$start2,dfX$end2)
+cntsX <- dfX %>%
+  distinct() %>%
+  dplyr::select(c(20,11:19)) %>%
+  column_to_rownames("loops")
+colnames(cntsX) <- gsub(".hic","",colnames(cntsX))
+# mdat
+mdatX <- data.frame(kind=colnames(cntsX))
+mdatX$condition <- "KD"
+mdatX[7:9,"condition"] <- "NTC"
+mdatX <- mdatX %>%
+  column_to_rownames("kind")
+## Build DESeq data set
+for (n in 1:9) {
+  cntsX[,n] <- as.integer(cntsX[,n])
+}
+ddsX <- DESeqDataSetFromMatrix(countData = cntsX,
+                              colData = mdatX,
+                              design = ~ condition)
+ddsX <- DESeq(ddsX)
+vstX <- varianceStabilizingTransformation(ddsX)
+#
+resX <- results(ddsX,contrast=c("condition","KD","NTC")) %>%
+  as.data.frame() %>%
+  rownames_to_column("loops")
+#
+resX %>% reactable()
+```
 
-### Top 500 most variable loops
+---
+
+## PCA {.tabset .tabset-pills}
+
+### Top 500 most variable loops {.tabset}
+
+#### with chrX
 ```{r,PCA_500, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
 rv <- rowVars(assay(vst))
 select <- order(rv, decreasing=T)[seq_len(min(500,length(rv)))]
@@ -104,11 +153,28 @@ p <- layout(p,title="",   xaxis = list(title = percentage[1]),
 p
 ```
 
-### All loops
+#### without chrX
+```{r,PCA_500_x, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+rvX <- rowVars(assay(vstX))
+selectX <- order(rvX, decreasing=T)[seq_len(min(500,length(rvX)))]
+pcX <- prcomp(t(assay(vstX)[selectX,]))
+condition <- mdatX$condition
+scoresX <- data.frame(pcX$x, condition)
+percentageX <- round(pcX$sdev / sum(pcX$sdev) * 100, 2)
+percentageX <- paste( colnames(scoresX), "(", paste( as.character(percentageX), "%", ")", sep="") )
+pX <- plot_ly(scoresX,x=scoresX$PC1,y=scoresX$PC2,text=rownames(scores),mode="markers",color=factor(condition),marker=list(size=11),colors = "Dark2")
+pX <- layout(pX,title="",   xaxis = list(title = percentageX[1]),
+            yaxis = list(title = percentageX[2]))
+pX
+```
+
+### All loops {.tabset}
+
+#### with chrX
 ```{r,PCA_ALL, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
 rv <- rowVars(assay(vst))
 pc <- prcomp(t(assay(vst)))
-condition <- mdat$condition
+condition <- mdatX$condition
 scores <- data.frame(pc$x, condition)
 percentage <- round(pc$sdev / sum(pc$sdev) * 100, 2)
 percentage <- paste( colnames(scores), "(", paste( as.character(percentage), "%", ")", sep="") )
@@ -118,9 +184,28 @@ p <- layout(p,title="",   xaxis = list(title = percentage[1]),
 p
 ```
 
-## MA plot
+#### without chrX
+```{r,PCA_ALL_X, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+rvX <- rowVars(assay(vstX))
+pcX <- prcomp(t(assay(vstX)))
+condition <- mdatX$condition
+scoresX<- data.frame(pcX$x, condition)
+percentageX <- round(pcX$sdev / sum(pcX$sdev) * 100, 2)
+percentageX <- paste( colnames(scores), "(", paste( as.character(percentageX), "%", ")", sep="") )
+pX <- plot_ly(scores,x=scores$PC1,y=scores$PC2,text=rownames(scores),mode="markers",color=factor(condition),marker=list(size=11),colors = "Dark2")
+pX <- layout(p,title="",   xaxis = list(title = percentageX[1]),
+            yaxis = list(title = percentageX[2]))
+pX
+```
 
+## MA plot {.tabset}
+
+### with chrX
 ```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
 DESeq2::plotMA(dds,colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05,ylim=c(-6,6))
 ```
 
+### without chrX
+```{r echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
+DESeq2::plotMA(ddsX,colSig="blue",xlab="Mean of Normalized Counts",alpha=0.05,ylim=c(-6,6))
+```
