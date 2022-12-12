@@ -30,9 +30,11 @@ Loops were firstly called using the [ABC Model](https://doi.org/10.1038/s41588-0
 
 # ABC model results
 
+The quantitative effect of an enhancer depends on the frequency with which it contacts a promoter multiplied by the strength of the enhancer (i.e., the ability of the enhancer to activate transcription upon contacting a promoter). Moreover, the contribution of a specific enhancer to a gene’s expression should depend on the surrounding context (ie, the strength and contact frequency of other enhancers for the gene). To convert this conceptual framework into a practical score (which can be applied genome-wide), the ABC score was formulated:
+
 ![](~/Documents/MED4_collab/images/ABC_model.png)
 
-Activity (A) is calculated as the geometric mean of the read counts of ATAC-seq and H3K27ac chromatin immunoprecipitation sequencing (ChIP–seq) at element E, and Contact (C) as the KR-normalized Hi-C contact frequency between E and the promoter of gene G at 5-kb resolution
+Activity (A) is calculated as the geometric mean of the read counts of ATAC-seq and H3K27ac chromatin immunoprecipitation sequencing (ChIP–seq) at element E, and Contact (C) as the KR-normalized Hi-C contact frequency between E and the promoter of gene G at 5-kb resolution.
 
 ```{r,ABC_MODEL,echo=FALSE,fig.cap="The number of significant loops (FDR < 0.05) is reported in each condition."}
 xfun::embed_file("~/Documents/MED4_collab/data/ABC_model_out/predictions/Enhancer_promoter_loops.csv")
