@@ -77,6 +77,7 @@ bedpe %>% as.data.frame() %>% reactable()
 ```{r,FINAL_RES, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
 df$loops <- stringr::str_c(df$seqnames1,sep = ".",df$start1,df$end1,df$start2,df$end2)
 cnts <- df %>%
+  dplyr::filter(df$start1 != df$start2) %>%
   distinct() %>%
   dplyr::select(c(20,11:19)) %>%
   column_to_rownames("loops")
@@ -107,6 +108,7 @@ res %>% reactable()
 ```{r,FINAL_RES_X, echo = FALSE, warning=FALSE,message=FALSE,out.width='100%'}
 dfX$loops <- stringr::str_c(dfX$seqnames1,sep = ".",dfX$start1,dfX$end1,dfX$start2,dfX$end2)
 cntsX <- dfX %>%
+  dplyr::filter(dfX$start1 != dfX$start2) %>%
   distinct() %>%
   dplyr::select(c(20,11:19)) %>%
   column_to_rownames("loops")
